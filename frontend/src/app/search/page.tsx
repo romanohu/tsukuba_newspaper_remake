@@ -1,4 +1,5 @@
 "use client";
+import { it } from "node:test";
 import { useState, useTransition } from "react";
 
 type SearchItem = { title?: string; path?: string; score?: number; hit_terms?: string[]};
@@ -26,6 +27,8 @@ export default function SearchPage() {
     });
   };
 
+  
+
   return (
     <main>
       <h1>新聞検索</h1>
@@ -46,7 +49,19 @@ export default function SearchPage() {
         <ul>
           {data.results.map((it, i) => (
             <li key={i}>
-              <div>{it.title ?? "(no title)"}</div>
+              {it.title && (() => {
+                    const [num, page] = it.title.split("_");
+                    const numInt = parseInt(num, 10);
+                    const label = numInt >= 360 ? `${numInt}号p${page}` : `${numInt}号p${page}`;
+                    const href = numInt >= 360
+                        ? `https://www.tsukuba.ac.jp/about/public-newspaper/pdf/${numInt}.pdf`
+                        : `https://www.tsukuba.ac.jp/about/public-newspaper/${numInt}.pdf`;
+                    return (
+                        <a href={href} target="_blank" rel="noopener noreferrer">
+                        {label}
+                        </a>
+                    );
+                    })()}
               {typeof it.score === "number" && (
                 <div>score: {it.score.toFixed(4)}</div>
               )}
