@@ -86,6 +86,14 @@ def _apply_tokenizer_settings(settings: dict):
     _WORD_NGS = list(ngs.get("word", [1]))
     _CHAR_NGS = list(ngs.get("char", []))
 
+def _override_ngrams(word_ngrams_override: Optional[List[int]], char_ngrams_override: Optional[List[int]]):
+    """DB設定のあとに、検索時指定で n-gram 範囲を上書き（None は上書きしない / [] は無効化）。"""
+    global _WORD_NGS, _CHAR_NGS
+    if word_ngrams_override is not None:
+        _WORD_NGS = list(word_ngrams_override)
+    if char_ngrams_override is not None:
+        _CHAR_NGS = list(char_ngrams_override)
+
 def _fetch_term_rows(cur: sqlite3.Cursor, terms: List[str]) -> Dict[str, Tuple[int, int]]:
     if not terms:
         return {}
@@ -137,7 +145,10 @@ def search_bm25(
     topk: int = 10,
     include_path: bool = False,
     return_fields: Optional[List[str]] = None,
-    return_terms: bool = True, 
+    return_terms: bool = True,
+    *,
+    word_ngrams: Optional[List[int]] = None,
+    char_ngrams: Optional[List[int]] = None,
 ) -> List[Dict]:
     if return_fields is None:
         return_fields = ["rank", "doc_id", "ext_id", "title", "score", "length"] + (["path"] if include_path else [])
@@ -147,6 +158,7 @@ def search_bm25(
 
     k1, b, N, avgdl, settings = _load_settings(cur)
     _apply_tokenizer_settings(settings)
+    _override_ngrams(word_ngrams, char_ngrams)
 
     q_terms = _query_terms(query)
     if not q_terms:
@@ -156,7 +168,6 @@ def search_bm25(
     if not term_rows:
         return []
 
-    # term_id -> term の逆マップ
     termid_to_term = {tid: term for term, (tid, _) in term_rows.items()}
 
     term_ids = [tid for (tid, _) in term_rows.values()]
@@ -172,7 +183,6 @@ def search_bm25(
     meta = _fetch_docs_meta(cur, doc_ids)
     docid_to_len = {doc_id: length for doc_id, (_, _, _, length) in meta.items()}
 
-    # --- 文書ごとのヒット単語を収集 ---
     doc_hit_terms: Dict[int, set] = defaultdict(set)
     for term_id, doc_id, tf in posts:
         if return_terms and term_id in termid_to_term:
@@ -200,5 +210,3 @@ def search_bm25(
             row["hit_terms"] = sorted(doc_hit_terms.get(doc_id, []))
         results.append(row)
     return results
-
-

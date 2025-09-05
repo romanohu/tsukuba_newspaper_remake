@@ -20,5 +20,7 @@ def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100
         query=q,
         topk=topk,
         include_path=True,
+        word_ngrams=[1,2,3],
+        char_ngrams=[2,3],
     )
     return {"results": results}
