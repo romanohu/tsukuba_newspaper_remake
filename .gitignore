@@ -1,0 +1,17 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+data/txts
+data/pdfs
+data/bm25_index.sqlite
+data/bm25_index.sqlite-wal
+data/bm25_index.sqlite-shm
+data/vec_meta.json
+data/faiss_index
