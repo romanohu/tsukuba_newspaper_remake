@@ -42,7 +42,7 @@ def word_ngrams(tokens, ns):
             for t in toks: yield t
         else:
             for i in range(0, max(0, len(toks)-n+1)):
-                yield "␟".join(toks[i:i+n])
+                yield "".join(toks[i:i+n])
 
 # 文字n-gram生成
 def char_ngrams(text: str, ns):

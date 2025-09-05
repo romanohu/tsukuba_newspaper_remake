@@ -1,7 +1,7 @@
 "use client";
 import { useState, useTransition } from "react";
 
-type SearchItem = { title?: string; path?: string; score?: number };
+type SearchItem = { title?: string; path?: string; score?: number; hit_terms?: string[]};
 type SearchResponse = { results: SearchItem[] };
 
 export default function SearchPage() {
@@ -47,10 +47,10 @@ export default function SearchPage() {
           {data.results.map((it, i) => (
             <li key={i}>
               <div>{it.title ?? "(no title)"}</div>
-              <div>{it.path}</div>
               {typeof it.score === "number" && (
                 <div>score: {it.score.toFixed(4)}</div>
               )}
+              <div>{it.hit_terms?.join(", ")}</div>
             </li>
           ))}
           {data.results.length === 0 && <li>結果はありませんでした。</li>}
