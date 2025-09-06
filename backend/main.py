@@ -14,15 +14,6 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-def _parse_int_list(s: Optional[str]) -> Optional[List[int]]:
-    if s is None:
-        return None
-    s = s.strip()
-    if not s:
-        return []
-    return [int(x) for x in s.replace(" ", "").split(",") if x]
-
-
 @app.get("/search/")
 def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100)):
     results = search_bm25(
@@ -32,7 +23,7 @@ def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100
         include_path=False,
         return_terms=True,
         word_ngrams=[1,2,3],
-        char_ngrams=[3],
+        char_ngrams=[3,4],
     )
     return {"results": results}
 
@@ -86,8 +77,6 @@ def hybrid_search(
     faiss_index: str = Query("../data/faiss.index"),
     vec_meta: str = Query("../data/vec_meta.json"),
     model: str = Query("intfloat/multilingual-e5-small"),
-    word_ngrams: Optional[str] = Query(None),
-    char_ngrams: Optional[str] = Query(None),
     include_path: bool = Query(True),
     ):
         results = search_hybrid(
