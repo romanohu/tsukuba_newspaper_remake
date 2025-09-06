@@ -1,7 +1,7 @@
 "use client";
 import { useState } from "react";
 
-type Mode = "bm25" | "hybrid";
+type Mode = "bm25" | "hybrid" | "vec";
 
 export default function SearchBox() {
   const [q, setQ] = useState("");
@@ -11,8 +11,9 @@ export default function SearchBox() {
   const API_BASE = "http://localhost:8000";
 
   const handleSearch = async () => {
-    const endpoint =
-      mode === "bm25" ? "/search/" : "/hybrid_search/";
+  let endpoint = "/search/";
+  if (mode === "hybrid") endpoint = "/hybrid_search/";
+  if (mode === "vec") endpoint = "/vec_search/";
     const url = new URL(API_BASE + endpoint);
     url.searchParams.set("q", q);
     url.searchParams.set("topk", String(topk));
@@ -24,7 +25,6 @@ export default function SearchBox() {
       url.searchParams.set("w_bm25", "0.6");
       url.searchParams.set("w_vec", "0.4");
     }
-
     const res = await fetch(url.toString());
     const json = await res.json();
     setResults(json.results ?? []);
@@ -40,6 +40,7 @@ export default function SearchBox() {
         />
         <select value={mode} onChange={(e) => setMode(e.target.value as Mode)}>
           <option value="bm25">BM25</option>
+          <option value="vec">Embedding</option>
           <option value="hybrid">Hybrid (BM25+Embedding)</option>
         </select>
         <input
