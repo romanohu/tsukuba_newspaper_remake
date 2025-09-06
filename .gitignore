@@ -7,7 +7,7 @@ wheels/
 *.egg-info
 
 # Virtual environments
-.venv
+backend/.venv/
 data/txts
 data/pdfs
 data/bm25_index.sqlite
