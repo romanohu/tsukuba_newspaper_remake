@@ -1,8 +1,8 @@
 from fastapi import FastAPI
 from fastapi import Query
 from typing import Optional, List
-from search import search_bm25
-from hybrid_search import search_hybrid
+from backend.search.search import search_bm25
+from backend.search.hybrid_search import search_hybrid
 from fastapi.middleware.cors import CORSMiddleware
 
 app = FastAPI()
@@ -14,6 +14,15 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+def _parse_int_list(s: Optional[str]) -> Optional[List[int]]:
+    if s is None:
+        return None
+    s = s.strip()
+    if not s:
+        return []
+    return [int(x) for x in s.replace(" ", "").split(",") if x]
+
+
 @app.get("/search/")
 def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100)):
     results = search_bm25(
@@ -21,8 +30,8 @@ def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100
         query=q,
         topk=topk,
         include_path=True,
-        word_ngrams=[1],
-        char_ngrams=[],
+        word_ngrams=[1,2,3],
+        char_ngrams=[2,3],
     )
     return {"results": results}
 
@@ -39,6 +48,8 @@ def hybrid_search(
     faiss_index: str = Query("../data/faiss.index"),
     vec_meta: str = Query("../data/vec_meta.json"),
     model: str = Query("intfloat/multilingual-e5-small"),
+    word_ngrams: Optional[str] = Query(None),
+    char_ngrams: Optional[str] = Query(None),
     include_path: bool = Query(True),
     ):
         results = search_hybrid(
@@ -54,5 +65,7 @@ def hybrid_search(
             w_vec=w_vec,
             include_path=include_path,
             model_name=model,
+            word_ngrams=_parse_int_list(word_ngrams),
+            char_ngrams=_parse_int_list(char_ngrams),
         )
         return {"results": results}
