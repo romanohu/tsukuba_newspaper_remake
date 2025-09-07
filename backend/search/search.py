@@ -11,7 +11,41 @@ from janome.tokenizer import Tokenizer
 _t = Tokenizer(wakati=False)
 _USE_POS = {"名詞", "動詞", "形容詞"}
 _STOPWORDS = {
-    "する","ある","いる","なる","できる","れる","こと","これ","それ","あれ","ため","よう","また","そして","ので","から","に","へ","で","を","が","は","です","ます","だ","な","の","と","や","も","ね","よ","その","この","あの"
+    "する",
+    "ある",
+    "いる",
+    "なる",
+    "できる",
+    "れる",
+    "こと",
+    "これ",
+    "それ",
+    "あれ",
+    "ため",
+    "よう",
+    "また",
+    "そして",
+    "ので",
+    "から",
+    "に",
+    "へ",
+    "で",
+    "を",
+    "が",
+    "は",
+    "です",
+    "ます",
+    "だ",
+    "な",
+    "の",
+    "と",
+    "や",
+    "も",
+    "ね",
+    "よ",
+    "その",
+    "この",
+    "あの",
 }
 _WORD_NGS: List[int] = [1]
 _CHAR_NGS: List[int] = []
@@ -28,6 +62,7 @@ def normalize(text: str) -> str:
         out.append(ch)
     return "".join(out)
 
+
 def tokenize_words(text: str) -> Iterable[str]:
     text = normalize(text)
     for tok in _t.tokenize(text):
@@ -35,6 +70,7 @@ def tokenize_words(text: str) -> Iterable[str]:
         pos = tok.part_of_speech.split(",")[0]
         if pos in _USE_POS and base and base not in _STOPWORDS:
             yield base
+
 
 def word_ngrams(tokens: Iterable[str], ns: List[int]) -> Iterable[str]:
     toks = list(tokens)
@@ -46,7 +82,8 @@ def word_ngrams(tokens: Iterable[str], ns: List[int]) -> Iterable[str]:
                 yield t
         else:
             for i in range(0, max(0, len(toks) - n + 1)):
-                yield "␟".join(toks[i:i+n])
+                yield "␟".join(toks[i : i + n])
+
 
 def char_ngrams(text: str, ns: List[int]) -> Iterable[str]:
     s = re.sub(r"\s+", "", normalize(text))
@@ -54,7 +91,8 @@ def char_ngrams(text: str, ns: List[int]) -> Iterable[str]:
         if n <= 0:
             continue
         for i in range(0, max(0, len(s) - n + 1)):
-            yield s[i:i+n]
+            yield s[i : i + n]
+
 
 def _query_terms(query: str) -> List[str]:
     terms = []
@@ -75,55 +113,80 @@ def _load_settings(cur: sqlite3.Cursor) -> Tuple[float, float, int, float, dict]
     settings = json.loads(kv.get("settings", "{}")) if "settings" in kv else {}
     return k1, b, N, avgdl, settings
 
+
 def _apply_tokenizer_settings(settings: dict):
     global _USE_POS, _STOPWORDS, _WORD_NGS, _CHAR_NGS
     tokset = settings.get("tokenize", {})
-    if "use_pos" in tokset: _USE_POS = set(tokset["use_pos"])
-    if "stopwords" in tokset: _STOPWORDS = set(tokset["stopwords"])
+    if "use_pos" in tokset:
+        _USE_POS = set(tokset["use_pos"])
+    if "stopwords" in tokset:
+        _STOPWORDS = set(tokset["stopwords"])
     ngs = settings.get("ngrams", {})
     _WORD_NGS = list(ngs.get("word", [1]))
     _CHAR_NGS = list(ngs.get("char", []))
 
-def _override_ngrams(word_ngrams_override: Optional[List[int]], char_ngrams_override: Optional[List[int]]):
+
+def _override_ngrams(
+    word_ngrams_override: Optional[List[int]], char_ngrams_override: Optional[List[int]]
+):
     global _WORD_NGS, _CHAR_NGS
     if word_ngrams_override is not None:
         _WORD_NGS = list(word_ngrams_override)
     if char_ngrams_override is not None:
         _CHAR_NGS = list(char_ngrams_override)
 
-def _fetch_term_rows(cur: sqlite3.Cursor, terms: List[str]) -> Dict[str, Tuple[int, int]]:
+
+def _fetch_term_rows(
+    cur: sqlite3.Cursor, terms: List[str]
+) -> Dict[str, Tuple[int, int]]:
     if not terms:
         return {}
     uniq = list(set(terms))
     qmarks = ",".join(["?"] * len(uniq))
-    rows = cur.execute(f"SELECT id, term, df FROM terms WHERE term IN ({qmarks})", uniq).fetchall()
+    rows = cur.execute(
+        f"SELECT id, term, df FROM terms WHERE term IN ({qmarks})", uniq
+    ).fetchall()
     out = {}
     for tid, term, df in rows:
         out[term] = (int(tid), int(df))
     return out
 
-def _fetch_postings(cur: sqlite3.Cursor, term_ids: List[int]) -> List[Tuple[int,int,int]]:
+
+def _fetch_postings(
+    cur: sqlite3.Cursor, term_ids: List[int]
+) -> List[Tuple[int, int, int]]:
     if not term_ids:
         return []
     qmarks = ",".join(["?"] * len(term_ids))
     return cur.execute(
-        f"SELECT term_id, doc_id, tf FROM postings WHERE term_id IN ({qmarks})", term_ids
+        f"SELECT term_id, doc_id, tf FROM postings WHERE term_id IN ({qmarks})",
+        term_ids,
     ).fetchall()
 
-def _fetch_docs_meta(cur: sqlite3.Cursor, doc_ids: List[int]) -> Dict[int, Tuple[str,str,str,int]]:
+
+def _fetch_docs_meta(
+    cur: sqlite3.Cursor, doc_ids: List[int]
+) -> Dict[int, Tuple[str, str, str, int]]:
     if not doc_ids:
         return {}
     qmarks = ",".join(["?"] * len(doc_ids))
     rows = cur.execute(
-        f"SELECT id, ext_id, title, path, length FROM docs WHERE id IN ({qmarks})", doc_ids
+        f"SELECT id, ext_id, title, path, length FROM docs WHERE id IN ({qmarks})",
+        doc_ids,
     ).fetchall()
-    return {int(i): (ext_id, title, path, int(length)) for (i, ext_id, title, path, length) in rows}
+    return {
+        int(i): (ext_id, title, path, int(length))
+        for (i, ext_id, title, path, length) in rows
+    }
+
 
 def _bm25_rank(
-    postings: List[Tuple[int,int,int]],
+    postings: List[Tuple[int, int, int]],
     termid_to_idf: Dict[int, float],
     docid_to_len: Dict[int, int],
-    k1: float, b: float, avgdl: float
+    k1: float,
+    b: float,
+    avgdl: float,
 ) -> Dict[int, float]:
     scores: Dict[int, float] = defaultdict(float)
     for term_id, doc_id, tf in postings:
@@ -148,7 +211,9 @@ def search_bm25(
     char_ngrams: Optional[List[int]] = None,
 ) -> List[Dict]:
     if return_fields is None:
-        return_fields = ["rank", "doc_id", "ext_id", "title", "score", "length"] + (["path"] if include_path else [])
+        return_fields = ["rank", "doc_id", "ext_id", "title", "score", "length"] + (
+            ["path"] if include_path else []
+        )
 
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
@@ -169,8 +234,10 @@ def search_bm25(
 
     term_ids = [tid for (tid, _) in term_rows.values()]
     df_map = {tid: df for (_, (tid, df)) in term_rows.items()}
-    termid_to_idf = {tid: (math.log((N - df + 0.5) / (df + 0.5) + 1.0) if N > 0 else 0.0)
-                     for tid, df in df_map.items()}
+    termid_to_idf = {
+        tid: (math.log((N - df + 0.5) / (df + 0.5) + 1.0) if N > 0 else 0.0)
+        for tid, df in df_map.items()
+    }
 
     posts = _fetch_postings(cur, term_ids)
     if not posts:
