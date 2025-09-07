@@ -1,3 +1,4 @@
+# search.py
 import json
 import math
 import re
@@ -146,10 +147,7 @@ def _fetch_term_rows(
     rows = cur.execute(
         f"SELECT id, term, df FROM terms WHERE term IN ({qmarks})", uniq
     ).fetchall()
-    out = {}
-    for tid, term, df in rows:
-        out[term] = (int(tid), int(df))
-    return out
+    return {term: (int(tid), int(df)) for tid, term, df in rows}
 
 
 def _fetch_postings(
@@ -164,7 +162,7 @@ def _fetch_postings(
     ).fetchall()
 
 
-def _fetch_docs_meta(
+def fetch_docs_meta(
     cur: sqlite3.Cursor, doc_ids: List[int]
 ) -> Dict[int, Tuple[str, str, str, int]]:
     if not doc_ids:
@@ -204,20 +202,13 @@ def search_bm25(
     query: str,
     topk: int = 10,
     include_path: bool = False,
-    return_fields: Optional[List[str]] = None,
     return_terms: bool = True,
     *,
     word_ngrams: Optional[List[int]] = None,
     char_ngrams: Optional[List[int]] = None,
 ) -> List[Dict]:
-    if return_fields is None:
-        return_fields = ["rank", "doc_id", "ext_id", "title", "score", "length"] + (
-            ["path"] if include_path else []
-        )
-
     conn = sqlite3.connect(db_path)
     cur = conn.cursor()
-
     k1, b, N, avgdl, settings = _load_settings(cur)
     _apply_tokenizer_settings(settings)
     _override_ngrams(word_ngrams, char_ngrams)
@@ -231,7 +222,6 @@ def search_bm25(
         return []
 
     termid_to_term = {tid: term for term, (tid, _) in term_rows.items()}
-
     term_ids = [tid for (tid, _) in term_rows.values()]
     df_map = {tid: df for (_, (tid, df)) in term_rows.items()}
     termid_to_idf = {
@@ -244,13 +234,14 @@ def search_bm25(
         return []
 
     doc_ids = sorted({doc_id for (_, doc_id, _) in posts})
-    meta = _fetch_docs_meta(cur, doc_ids)
+    meta = fetch_docs_meta(cur, doc_ids)
     docid_to_len = {doc_id: length for doc_id, (_, _, _, length) in meta.items()}
 
     doc_hit_terms: Dict[int, set] = defaultdict(set)
-    for term_id, doc_id, tf in posts:
-        if return_terms and term_id in termid_to_term:
-            doc_hit_terms[doc_id].add(termid_to_term[term_id])
+    if return_terms:
+        for term_id, doc_id, tf in posts:
+            if term_id in termid_to_term:
+                doc_hit_terms[doc_id].add(termid_to_term[term_id])
 
     scores = _bm25_rank(posts, termid_to_idf, docid_to_len, k1, b, avgdl)
     if not scores:

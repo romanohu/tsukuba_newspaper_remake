@@ -1,8 +1,12 @@
-from fastapi import FastAPI
-from fastapi import Query
-from search.search import search_bm25
-from search.hybrid_search import search_hybrid, search_vec, _fetch_docs_meta
+from fastapi import FastAPI, Query
 from fastapi.middleware.cors import CORSMiddleware
+
+# 検索モジュール
+from search.bm25_search import search_bm25
+from search.hybrid_search import search_hybrid
+from search.vec_search import search_vec
+from search.bm25_search import fetch_docs_meta
+import sqlite3
 
 app = FastAPI()
 app.add_middleware(
@@ -14,8 +18,19 @@ app.add_middleware(
 )
 
 
-@app.get("/search/")
-def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100)):
+def add_meta_info(doc_ids, db_path="../data/bm25_index.sqlite"):
+    conn = sqlite3.connect(db_path)
+    cur = conn.cursor()
+    meta_docs = fetch_docs_meta(cur, doc_ids)
+    conn.close()
+    return meta_docs
+
+
+@app.get("/bm25_search/")
+def bm25_search(
+    q: str = Query(..., min_length=1),
+    topk: int = Query(10, ge=1, le=100),
+):
     results = search_bm25(
         db_path="../data/bm25_index.sqlite",
         query=q,
@@ -32,62 +47,48 @@ def search(q: str = Query(..., min_length=1), topk: int = Query(10, ge=1, le=100
 def vec_search(
     q: str = Query(..., min_length=1),
     topk: int = Query(10, ge=1, le=100),
-    faiss_index: str = Query("../data/faiss.index"),
-    vec_meta: str = Query("../data/vec_meta.json"),
-    model: str = Query("intfloat/multilingual-e5-small"),
+    faiss_index: str = "../data/faiss.index",
+    vec_meta: str = "../data/vec_meta.json",
 ):
-    results = search_vec(
+    hits = search_vec(
         faiss_index_path=faiss_index,
         meta_json_path=vec_meta,
         query=q,
         topk=topk,
-        model_name=model,
     )
-    import sqlite3
-
-    conn = sqlite3.connect("../data/bm25_index.sqlite")
-    cur = conn.cursor()
-    meta_docs = {}
-    doc_ids = [doc_id for doc_id, _ in results]
-    for chunk in [doc_ids[i : i + 999] for i in range(0, len(doc_ids), 999)]:
-        meta_docs.update(_fetch_docs_meta(cur, chunk))
-    conn.close()
-    out = []
-    for doc_id, score in results:
-        if doc_id in meta_docs:
-            ext_id, title, path, length = meta_docs[doc_id]
-            out.append(
-                {
-                    "doc_id": doc_id,
-                    "score": score,
-                    "title": title,
-                    "path": path,
-                    "ext_id": ext_id,
-                    "length": length,
-                }
-            )
-    return {"results": out}
+    meta_docs = add_meta_info([doc_id for doc_id, _ in hits])
+    return {
+        "results": [
+            {
+                **{"doc_id": doc_id, "score": score},
+                **{
+                    "title": meta_docs[doc_id][1],
+                    "path": meta_docs[doc_id][2],
+                    "ext_id": meta_docs[doc_id][0],
+                    "length": meta_docs[doc_id][3],
+                },
+            }
+            for doc_id, score in hits
+            if doc_id in meta_docs
+        ]
+    }
 
 
 @app.get("/hybrid_search/")
-def hybrid_search(
+def hybrid_search_endpoint(
     q: str = Query(..., min_length=1),
-    topk: int = Query(10, ge=1, le=100),
-    bm25_k: int = Query(50, ge=1, le=1000),
-    vec_k: int = Query(200, ge=1, le=5000),
+    topk: int = 10,
+    bm25_k: int = 50,
+    vec_k: int = 200,
     fusion: str = Query("rrf", pattern="^(rrf|wsum)$"),
-    w_bm25: float = Query(0.6, ge=0.0, le=1.0),
-    w_vec: float = Query(0.4, ge=0.0, le=1.0),
-    db_path: str = Query("../data/bm25_index.sqlite"),
-    faiss_index: str = Query("../data/faiss.index"),
-    vec_meta: str = Query("../data/vec_meta.json"),
-    model: str = Query("intfloat/multilingual-e5-small"),
-    include_path: bool = Query(True),
+    w_bm25: float = 0.6,
+    w_vec: float = 0.4,
+    include_path: bool = True,
 ):
     results = search_hybrid(
-        db_path=db_path,
-        faiss_index_path=faiss_index,
-        meta_json_path=vec_meta,
+        db_path="../data/bm25_index.sqlite",
+        faiss_index_path="../data/faiss.index",
+        meta_json_path="../data/vec_meta.json",
         query=q,
         topk=topk,
         bm25_k=bm25_k,
@@ -96,8 +97,5 @@ def hybrid_search(
         w_bm25=w_bm25,
         w_vec=w_vec,
         include_path=include_path,
-        model_name=model,
-        word_ngrams=[1, 2, 3],
-        char_ngrams=[3],
     )
     return {"results": results}

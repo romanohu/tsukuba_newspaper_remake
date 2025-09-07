@@ -11,7 +11,7 @@ export default function SearchBox() {
   const API_BASE = "http://localhost:8000";
 
   const handleSearch = async () => {
-  let endpoint = "/search/";
+  let endpoint = "/bm25_search/";
   if (mode === "hybrid") endpoint = "/hybrid_search/";
   if (mode === "vec") endpoint = "/vec_search/";
     const url = new URL(API_BASE + endpoint);
