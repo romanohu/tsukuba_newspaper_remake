@@ -6,7 +6,6 @@ from search.bm25_search import search_bm25
 from search.hybrid_search import search_hybrid
 from search.vec_search import search_vec
 from search.bm25_search import fetch_docs_meta
-import sqlite3
 
 app = FastAPI()
 app.add_middleware(
@@ -18,12 +17,6 @@ app.add_middleware(
 )
 
 
-def add_meta_info(doc_ids, db_path="../data/bm25_index.sqlite"):
-    conn = sqlite3.connect(db_path)
-    cur = conn.cursor()
-    meta_docs = fetch_docs_meta(cur, doc_ids)
-    conn.close()
-    return meta_docs
 
 
 @app.get("/bm25_search/")
@@ -56,22 +49,7 @@ def vec_search(
         query=q,
         topk=topk,
     )
-    meta_docs = add_meta_info([doc_id for doc_id, _ in hits])
-    return {
-        "results": [
-            {
-                **{"doc_id": doc_id, "score": score},
-                **{
-                    "title": meta_docs[doc_id][1],
-                    "path": meta_docs[doc_id][2],
-                    "ext_id": meta_docs[doc_id][0],
-                    "length": meta_docs[doc_id][3],
-                },
-            }
-            for doc_id, score in hits
-            if doc_id in meta_docs
-        ]
-    }
+    return {"results": hits}
 
 
 @app.get("/hybrid_search/")

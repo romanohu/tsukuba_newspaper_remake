@@ -4,7 +4,7 @@ from collections import defaultdict
 from typing import Dict, List, Tuple, Optional
 
 from .bm25_search import search_bm25, fetch_docs_meta
-from .vec_search import search_vec
+from .vec_search import search_vec_forhybrid
 
 
 def rrf_fuse(
@@ -72,7 +72,7 @@ def search_hybrid(
         row["doc_id"]: float(row["score"]) for row in bm25_rows
     }
 
-    vec_hits = search_vec(
+    vec_hits = search_vec_forhybrid(
         faiss_index_path=faiss_index_path,
         meta_json_path=meta_json_path,
         query=query,
