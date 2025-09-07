@@ -27,7 +27,6 @@ def search_vec(
     model_name: str = "intfloat/multilingual-e5-small",
     topk: int = 200,
 ) -> List[Tuple[int, float]]:
-    """FAISS から doc_id とスコアを返す。メタ取得は呼び出し側で行う。"""
     index = _load_faiss(faiss_index_path)
     meta = _load_vec_meta(meta_json_path)
     model = SentenceTransformer(model_name)
